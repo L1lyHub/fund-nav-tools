@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eMAXIS Slim 全世界株式(オルカン) - 基準価額予測ツール</title>
+<style>
+/* ============================================================
+   MAINTENANCE GUIDE
+   係数の更新方法 → このファイルをテキストエディタで開き、
+   下記の「COEFFICIENTS」セクションの数値を書き換えて保存。
+   ============================================================ */
+
+:root {
+  --bg0:      #0e1117;
+  --bg1:      #161b27;
+  --bg2:      #1e2535;
+  --bg3:      #252d3d;
+  --border:   #2e3a52;
+  --border-am:#1e6fff;
+  --border-pm:#19a574;
+  --accent-am:#3b82f6;
+  --accent-pm:#10b981;
+  --accent-k: #f59e0b;
+  --text0:    #e8edf5;
+  --text1:    #9ba8be;
+  --text2:    #5f6e8a;
+  --up:       #34d399;
+  --dn:       #f87171;
+  --warn:     #fbbf24;
+  --font:     'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+  --mono:     'Consolas', 'Courier New', monospace;
+  --r-sm:     6px;
+  --r-md:     10px;
+  --r-lg:     14px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  background: var(--bg0);
+  color: var(--text0);
+  font-family: var(--font);
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* ---- Layout ---- */
+.page-header {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 1.1rem 2rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+.page-title { font-size: 1rem; font-weight: 600; color: var(--text0); letter-spacing: .02em; }
+.page-sub   { font-size: .75rem; color: var(--text2); }
+
+.container { max-width: 860px; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
+
+/* ---- Cards ---- */
+.card {
+  background: var(--bg1);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.1rem;
+}
+.card.am-card { border-color: var(--border-am); }
+.card.pm-card { border-color: var(--border-pm); }
+.card.result-card { border-color: #374151; }
+.card-label {
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 1rem;
+}
+
+/* ---- Mode toggle — スマホ対応 ---- */
+.mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+.mode-btn {
+  flex: 1;
+  padding: .6rem .75rem;
+  font-size: .82rem;
+  font-family: var(--font);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text1);
+  border: none;
+  border-right: 1px solid var(--border);
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+  text-align: center;
+}
+@media (max-width: 480px) {
+  .mode-btn { font-size: .75rem; padding: .6rem .4rem; }
+}
+.mode-btn:last-child { border-right: none; }
+.mode-btn.on-am {
+  background: rgba(59,130,246,.15);
+  color: #93c5fd;
+  font-weight: 500;
+}
+.mode-btn.on-pm {
+  background: rgba(16,185,129,.15);
+  color: #6ee7b7;
+  font-weight: 500;
+}
+.mode-desc { font-size: .8rem; color: var(--text1); line-height: 1.6; }
+.mode-desc strong { color: var(--text0); }
+
+/* ---- Inputs ---- */
+.input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .875rem;
+}
+.input-group { display: flex; flex-direction: column; gap: .35rem; }
+.input-group label {
+  font-size: .75rem;
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.input-group input[type=number] {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text0);
+  font-size: .95rem;
+  font-family: var(--mono);
+  padding: .5rem .75rem;
+  width: 100%;
+  transition: border-color .15s, box-shadow .15s;
+  -moz-appearance: textfield;
+}
+.input-group input[type=number]::-webkit-inner-spin-button,
+.input-group input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+.input-group input[type=number]:focus {
+  outline: none;
+  border-color: var(--accent-am);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.input-group input.pm-focus:focus {
+  border-color: var(--accent-pm);
+  box-shadow: 0 0 0 3px rgba(16,185,129,.12);
+}
+.input-group input.has-value { border-color: #374557; }
+.hint { font-size: .7rem; color: var(--text2); line-height: 1.5; }
+.hint a { color: #60a5fa; text-decoration: none; }
+.hint a:hover { text-decoration: underline; }
+.divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-block;
+  font-size: .65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+.badge-blue   { background: rgba(59,130,246,.18);  color: #93c5fd; }
+.badge-green  { background: rgba(16,185,129,.18);  color: #6ee7b7; }
+.badge-teal   { background: rgba(20,184,166,.18);  color: #5eead4; }
+.badge-amber  { background: rgba(245,158,11,.18);  color: #fcd34d; }
+.badge-red    { background: rgba(239,68,68,.18);   color: #fca5a5; }
+
+/* ---- Result metrics ---- */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.metric {
+  background: var(--bg2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  padding: .875rem 1rem;
+}
+.metric-label { font-size: .7rem; color: var(--text2); margin-bottom: .35rem; }
+.metric-value { font-size: 1.4rem; font-weight: 600; color: var(--text0); line-height: 1; font-family: var(--mono); }
+.metric-sub   { font-size: .7rem; color: var(--text2); margin-top: .3rem; }
+.up  { color: var(--up); }
+.dn  { color: var(--dn); }
+.neu { color: var(--text1); }
+
+/* ---- Formula box ---- */
+.formula {
+  background: var(--bg0);
+  border: 1px solid var(--border);
+  border-left: 3px solid #374557;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: .875rem 1.1rem;
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--text1);
+  line-height: 2;
+  white-space: pre-wrap;
+}
+
+/* ---- Tabs ---- */
+.tab-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .875rem; }
+.tab {
+  padding: .4rem 1rem;
+  font-size: .78rem;
+  font-family: var(--font);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text1);
+  transition: background .15s, color .15s;
+}
+.tab:hover { background: var(--bg3); color: var(--text0); }
+.tab.on { background: var(--bg3); color: var(--text0); border-color: #4a5568; font-weight: 500; }
+
+/* ---- Tables ---- */
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.tbl th {
+  font-weight: 500;
+  color: var(--text2);
+  padding: .5rem .75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+  background: var(--bg0);
+}
+.tbl th:first-child { text-align: left; }
+.tbl td {
+  padding: .45rem .75rem;
+  border-bottom: 1px solid #1a2030;
+  color: var(--text1);
+  text-align: right;
+  font-family: var(--mono);
+  font-size: .77rem;
+}
+.tbl td:first-child { text-align: left; font-family: var(--font); color: var(--text0); }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr.hi td { background: var(--bg3); }
+.tbl tr:hover td { background: rgba(255,255,255,.02); }
+.tbl .good { color: var(--up); }
+.tbl .bad  { color: var(--dn); }
+.tbl .mid  { color: var(--warn); }
+
+/* ---- Info box ---- */
+.info-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: .875rem 1rem;
+  font-size: .78rem;
+  color: var(--text1);
+  line-height: 1.8;
+  margin-top: .75rem;
+}
+.info-box strong { color: var(--text0); }
+
+/* ---- Maintenance section ---- */
+.maintenance-card {
+  background: var(--bg1);
+  border: 1px dashed #2e3a52;
+  border-radius: var(--r-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.1rem;
+}
+.maintenance-title {
+  font-size: .8rem;
+  color: var(--warn);
+  font-weight: 600;
+  margin-bottom: .75rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.coef-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: .5rem;
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--text1);
+}
+.coef-row { display: flex; justify-content: space-between; align-items: center; padding: .3rem 0; border-bottom: 1px solid #1a2030; }
+.coef-row:last-child { border-bottom: none; }
+.coef-name { color: var(--text2); }
+.coef-val  { color: var(--warn); font-weight: 600; }
+.coef-note { font-size: .68rem; color: var(--text2); margin-top: .1rem; }
+
+/* ---- Footer ---- */
+.footer {
+  text-align: center;
+  font-size: .7rem;
+  color: var(--text2);
+  padding: 2rem 0 1rem;
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
+}
+
+/* ---- Collapsible formula ---- */
+.formula-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .4rem;
+  cursor: pointer;
+  user-select: none;
+  margin-top: .75rem;
+  padding: .4rem 0;
+  font-size: .74rem;
+  color: var(--text2);
+  border: none;
+  background: none;
+  font-family: var(--font);
+  width: 100%;
+  text-align: left;
+  border-top: 1px solid var(--border);
+}
+.formula-toggle:hover { color: var(--text1); }
+.toggle-arrow { display: inline-block; font-size: .7rem; transition: transform .2s; }
+.toggle-arrow.open { transform: rotate(90deg); }
+.formula { display: none; margin-top: .5rem; }
+
+/* ---- Mobile responsive ---- */
+@media (max-width: 600px) {
+  html { font-size: 14px; }
+  .page-header { flex-direction: column; gap: .2rem; padding: .75rem 1rem; }
+  .page-title  { font-size: .85rem; line-height: 1.4; }
+  .container   { padding: .875rem .75rem 3rem; }
+  .card        { padding: .875rem 1rem; margin-bottom: .75rem; }
+  .input-grid  { grid-template-columns: 1fr; }
+  .metrics-grid{ grid-template-columns: 1fr 1fr; }
+  .metric      { padding: .7rem .75rem; }
+  .metric-value{ font-size: 1.15rem; }
+  .tab-row     { gap: .3rem; }
+  .tab         { padding: .35rem .6rem; font-size: .71rem; }
+  .tbl         { font-size: .7rem; }
+  .tbl th, .tbl td { padding: .35rem .45rem; }
+  .mode-desc   { font-size: .74rem; }
+  .coef-grid   { grid-template-columns: 1fr; }
+  .maintenance-card { padding: .875rem 1rem; }
+  .badge       { font-size: .6rem; padding: 1px 5px; }
+}
+/* ---- PIN overlay ---- */
+#pin-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg0);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.pin-box {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 2rem 2rem 1.75rem;
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+}
+.pin-title {
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--text0);
+  margin-bottom: .35rem;
+}
+.pin-sub {
+  font-size: .75rem;
+  color: var(--text2);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+.pin-input-wrap {
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.pin-digit {
+  width: 52px;
+  height: 58px;
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text0);
+  font-size: 1.5rem;
+  font-family: var(--mono);
+  font-weight: 600;
+  text-align: center;
+  caret-color: var(--accent-am);
+}
+.pin-digit:focus {
+  outline: none;
+  border-color: var(--accent-am);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+.pin-error {
+  font-size: .75rem;
+  color: var(--dn);
+  min-height: 1.2rem;
+  margin-bottom: .75rem;
+}
+.pin-btn {
+  width: 100%;
+  padding: .65rem;
+  background: rgba(59,130,246,.15);
+  border: 1px solid var(--accent-am);
+  border-radius: var(--r-md);
+  color: #93c5fd;
+  font-size: .85rem;
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+}
+.pin-btn:hover { background: rgba(59,130,246,.25); }
+.pin-note {
+  font-size: .68rem;
+  color: var(--text2);
+  margin-top: 1.25rem;
+  line-height: 1.6;
+}
+#mode-card { box-shadow: 0 4px 16px rgba(0,0,0,.45); }
+</style>
+</head>
+<body>
+
+<!-- =====================================================
+     PIN OVERLAY
+     PINの変更方法: このファイルをテキストエディタで開き
+     下記 CORRECT_PIN の値を任意の4桁数字に書き換えて保存
+     ===================================================== -->
+<div id="pin-overlay">
+  <div class="pin-box">
+    <div class="pin-title">アクセス認証</div>
+    <div class="pin-sub">4桁のPINコードを入力してください</div>
+    <div class="pin-input-wrap">
+      <input class="pin-digit" type="tel" id="p1" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input class="pin-digit" type="tel" id="p2" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input class="pin-digit" type="tel" id="p3" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input class="pin-digit" type="tel" id="p4" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+    <button class="pin-btn" onclick="checkPin()">確認</button>
+  </div>
+</div>
+
+<div class="page-header">
+  <span class="page-title">eMAXIS Slim 全世界株式(オルカン) - 基準価額予測ツール</span>
+</div>
+
+<div class="container">
+
+  <!-- MODE SELECT -->
+  <div class="card" id="mode-card" style="position:sticky;top:var(--header-h);z-index:100;margin-bottom:.75rem;">
+    <div class="card-label">予測モード</div>
+    <div class="mode-toggle">
+      <button class="mode-btn on-am" id="btn-am" onclick="setMode('am')">午前モード — EUR/JPY補正</button>
+      <button class="mode-btn" id="btn-pm" onclick="setMode('pm')">午後モード — TOPIX補正</button>
+    </div>
+    <div class="mode-desc" id="mode-desc"></div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="card am-card" id="input-card">
+    <div class="card-label">
+      入力データ
+      <span class="badge badge-amber" style="margin-left:.5rem">為替は全て「始値」を使用</span>
+    </div>
+
+    <div class="input-grid">
+      <div class="input-group">
+        <label>MSCI ACWI Net USD — <strong>前日</strong>終値</label>
+        <input type="number" id="msci" step="0.01" placeholder="例: 564.05">
+        <div class="hint">
+          <a href="https://jp.investing.com/indices/msci-acwi-net-usd-historical-data" target="_blank">investing.com → MSCI ACWI</a> で前日の「終値」
+        </div>
+      </div>
+      <div class="input-group">
+        <label>USD/JPY — <strong>当日</strong>始値 <span class="badge badge-blue">精度最高</span></label>
+        <input type="number" id="usd" step="0.01" placeholder="例: 158.06">
+        <div class="hint">
+          <a href="https://jp.investing.com/currencies/usd-jpy-historical-data" target="_blank">investing.com → USD/JPY</a> 当日の「始値」
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="inp-am">
+      <div class="input-grid">
+        <div class="input-group">
+          <label>EUR/JPY — <strong>当日</strong>始値 <span class="badge badge-teal">AMモード</span></label>
+          <input type="number" id="eur" step="0.01" placeholder="例: 183.52" class="pm-focus" style="border-color: #1e4a7f;">
+          <div class="hint">
+            <a href="https://jp.investing.com/currencies/eur-jpy-historical-data" target="_blank">investing.com → EUR/JPY</a> 当日の「始値」
+          </div>
+        </div>
+        <div class="input-group">
+          <label>前日の実際の基準価額（変化率確認用）</label>
+          <input type="number" id="prev_nav" step="1" placeholder="例: 33909">
+          <div class="hint">
+            <a href="https://jp.investing.com/funds/mukam-emaxis-slim-all-world-equity-historical-data" target="_blank">investing.com → オルカン</a>で前日実績を確認
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="inp-pm" style="display:none">
+      <div class="input-grid">
+        <div class="input-group">
+          <label>TOPIX — <strong>当日</strong>終値 <span class="badge badge-green">PMモード</span></label>
+          <input type="number" id="topix" step="0.01" placeholder="例: 3698.85" style="border-color: #0e4a30;">
+          <div class="hint">
+            <a href="https://jp.investing.com/indices/topix-historical-data" target="_blank">investing.com → TOPIX</a> 当日の「終値」（15:30以降）
+          </div>
+        </div>
+        <div class="input-group">
+          <label>前日の実際の基準価額（変化率確認用）</label>
+          <input type="number" id="prev_nav_pm" step="1" placeholder="例: 33909">
+          <div class="hint">
+            <a href="https://jp.investing.com/funds/mukam-emaxis-slim-all-world-equity-historical-data" target="_blank">investing.com → オルカン</a>で前日実績を確認
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="card result-card">
+    <div class="card-label">予測結果</div>
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">予想基準価額</div>
+        <div class="metric-value" id="r-nav">—</div>
+        <div class="metric-sub" id="r-lbl">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">前日比</div>
+        <div class="metric-value neu" id="r-chg">—</div>
+        <div class="metric-sub" id="r-chg-sub">前日実績入力時に表示</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">予測レンジ（±中央誤差）</div>
+        <div class="metric-value" id="r-rng" style="font-size:1rem">—</div>
+        <div class="metric-sub">±0.116% (中央誤差)</div>
+      </div>
+    </div>
+    <button class="formula-toggle" onclick="toggleFormula(this)" aria-expanded="false"><span class="toggle-arrow">▶</span><span class="toggle-label">計算式を表示</span></button>
+    <div class="formula" id="r-fml">入力値を変更すると計算式が表示されます</div>
+  </div>
+
+  <!-- ACTUAL NAV CHECK -->
+  <div class="card" id="actual-card" style="border-color: #3d2e52;">
+    <div class="card-label">当日実績照合 <span class="badge badge-amber" style="margin-left:.5rem">18時以降 — 基準価額公開後</span></div>
+    <div class="input-grid">
+      <div class="input-group">
+        <label>当日の実際の基準価額</label>
+        <input type="number" id="actual_nav" step="1" placeholder="例: 33909">
+        <div class="hint">
+          <a href="https://emaxis.am.mufg.jp/fund/253425.html" target="_blank">MUFGアセット公式 → 基準価額</a> 18時頃に公開される当日確定値
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:.5rem; justify-content:center;">
+        <div class="metric" id="actual-diff-am" style="padding:.65rem .875rem;">
+          <div class="metric-label">予測(AM) vs 実績</div>
+          <div class="metric-value neu" id="r-actual-am" style="font-size:1.1rem;">—</div>
+          <div class="metric-sub" id="r-actual-am-sub">当日基準価額を入力すると表示</div>
+        </div>
+        <div class="metric" id="actual-diff-pm" style="padding:.65rem .875rem;">
+          <div class="metric-label">予測(PM) vs 実績</div>
+          <div class="metric-value neu" id="r-actual-pm" style="font-size:1.1rem;">—</div>
+          <div class="metric-sub" id="r-actual-pm-sub">予測(AM)・予測(PM)両方と比較</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-label">分析・精度</div>
+    <div class="tab-row">
+      <button class="tab on" onclick="showTab('flow',this)">使い方フロー</button>
+      <button class="tab" onclick="showTab('perf',this)">モデル比較</button>
+      <button class="tab" onclick="showTab('rec',this)">直近実績</button>
+      <button class="tab" onclick="showTab('coef',this)">係数詳細</button>
+      <button class="tab" onclick="showTab('drift',this)">Kドリフト・配当</button>
+    </div>
+
+    <div id="tab-flow">
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>時間帯</th><th>操作</th><th>データ取得先</th><th>精度</th></tr></thead>
+        <tbody>
+          <tr><td>前日18時〜</td><td>MSCI ACWI 終値を入力</td><td>investing.com → MSCI ACWI</td><td>—（FX待ち）</td></tr>
+          <tr><td>当日9時〜</td><td>USD/JPY・EUR/JPY の始値を入力（AM）</td><td>investing.com 当日の「始値」欄</td><td class="good">CV 0.162%</td></tr>
+          <tr><td>15:30以降</td><td>PMモードに切替、TOPIX終値を入力</td><td>investing.com → TOPIX</td><td class="good">CV 0.167%</td></tr>
+          <tr><td>18時〜</td><td>当日実績照合カードに確定基準価額を入力</td><td>investing.com → オルカン</td><td>—</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="info-box" style="margin-top:.75rem;">
+        <strong>investing.com での始値の確認方法</strong><br>
+        各ページを開いたあと、当日の行の「始値」列の数値をそのままコピー。市場が開いている時間帯（9:00〜）であれば当日データが更新されています。
+      </div>
+    </div>
+
+    <div id="tab-perf" style="display:none">
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>モデル / FX入力方法</th><th>CV平均誤差</th><th>CV中央値</th><th>0.5%以内</th><th>改善幅</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>旧モデル: USD終値のみ</td><td class="mid">0.403%</td><td>—</td><td>71.9%</td><td>—</td></tr>
+          <tr><td>旧モデル: USD (高+安)÷2</td><td class="mid">0.235%</td><td>—</td><td>90.2%</td><td>+18.3pt</td></tr>
+          <tr class="hi"><td><strong>現行 AM: USD始値 + EUR始値</strong> <span class="badge badge-teal">推奨</span></td><td class="good"><strong>0.162%</strong></td><td class="good"><strong>0.116%</strong></td><td class="good"><strong>96.7%</strong></td><td class="good"><strong>+24.8pt</strong></td></tr>
+          <tr class="hi"><td><strong>現行 PM: USD始値 + TOPIX</strong> <span class="badge badge-green">推奨</span></td><td class="good"><strong>0.167%</strong></td><td class="good"><strong>0.125%</strong></td><td class="good"><strong>96.4%</strong></td><td class="good"><strong>+24.5pt</strong></td></tr>
+          <tr><td>シンプルK: USD始値のみ</td><td>0.210%</td><td>0.168%</td><td>94.3%</td><td>+22.4pt</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="info-box" style="margin-top:.75rem; font-size:.75rem;">
+        データ: 1,792営業日（2018/11〜2026/3）、時系列5-fold CV<br>
+        始値（開始値）がTTM仲値（9:55確定）に最も近似することをデータで確認。K標準偏差: 終値0.00213 → (高+安)÷2: 0.00124 → <strong>始値: 0.00101（最小）</strong>
+      </div>
+    </div>
+
+    <div id="tab-rec" style="display:none">
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>日付</th><th>実績</th><th>MSCI前日</th><th>USD始値</th><th>EUR始値</th><th>AM予測(誤差)</th><th>PM予測(誤差)</th></tr>
+        </thead>
+        <tbody id="rec-tbody"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div id="tab-coef" style="display:none">
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>パラメータ</th><th>値</th><th>備考</th></tr></thead>
+        <tbody>
+          <tr><td>K（始値, 直近90日）</td><td>0.380160</td><td>シンプルモデル用</td></tr>
+          <tr><td>AM: a (MSCI×USD係数)</td><td>0.380867</td><td>EUR補正モデル</td></tr>
+          <tr><td>AM: b (EUR/JPY始値)</td><td>−0.124068</td><td>※USD/EURと多重共線性あり</td></tr>
+          <tr><td>AM: 切片</td><td>−59.5207</td><td></td></tr>
+          <tr><td>PM: a (MSCI×USD係数)</td><td>0.378894</td><td>TOPIX補正モデル</td></tr>
+          <tr><td>PM: b (TOPIX係数)</td><td>0.060552</td><td></td></tr>
+          <tr><td>PM: 切片</td><td>−113.3533</td><td></td></tr>
+          <tr><td>係数更新推奨頻度</td><td>3ヶ月に1回</td><td>直近90日データをClaudeに渡して再計算</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="info-box" style="margin-top:.75rem;">
+        ※AM係数b(EUR)が負値なのはUSD始値とEUR始値の相関が非常に高いため（多重共線性）。係数単体の解釈は難しいが、組み合わせた予測精度は高い。
+      </div>
+    </div>
+
+    <div id="tab-drift" style="display:none">
+      <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>年</th><th>K平均</th><th>前年差</th></tr></thead>
+        <tbody>
+          <tr><td>2018</td><td>0.378362</td><td>—</td></tr>
+          <tr><td>2019</td><td>0.378516</td><td class="good">+0.000154</td></tr>
+          <tr><td>2020</td><td>0.378619</td><td class="good">+0.000103</td></tr>
+          <tr><td>2021</td><td>0.378604</td><td class="dn">−0.000015</td></tr>
+          <tr><td>2022</td><td>0.379055</td><td class="good">+0.000451</td></tr>
+          <tr><td>2023</td><td>0.379381</td><td class="good">+0.000326</td></tr>
+          <tr><td>2024</td><td>0.379584</td><td class="good">+0.000203</td></tr>
+          <tr><td>2025</td><td>0.379941</td><td class="good">+0.000357</td></tr>
+          <tr><td>2026</td><td>0.380097</td><td class="good">+0.000156</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="info-box" style="margin-top:.75rem;">
+        <strong>配当再投資型とKドリフトの関係</strong><br>
+        MSCI ACWI <em>Net</em> USD はネット配当込みトータルリターン指数のため、配当はすでに指数側に再投資済みとして計算されています。配当がKドリフトの主因ではありません。<br><br>
+        年間ドリフト +0.057%/年 ≈ 信託報酬 −0.058%/年 がほぼ相殺。差分（+0.115%/年）の推定原因：<br>
+        ① 有価証券貸付収益（株を貸し出して得る収入が信託報酬を補填）<br>
+        ② MSCIの源泉税率仮定 vs 実際の租税条約適用税率の差<br>
+        ③ 配当受取タイミングのズレによる複利微差<br><br>
+        <strong>実用上の影響はゼロ。直近90日平均Kが自動追従するため補正不要。</strong>
+      </div>
+    </div>
+
+  </div><!-- /analysis card -->
+
+  <!-- MAINTENANCE -->
+  <div class="maintenance-card">
+    <div class="maintenance-title">
+      <span>⚙</span> メンテナンス — 係数の更新方法
+    </div>
+    <div style="font-size:.78rem; color: var(--text1); margin-bottom:.875rem; line-height:1.7;">
+      3ヶ月に1回程度、最新データをClaudeに渡して下記の数値を更新してください。<br>
+      このHTMLファイルをテキストエディタ（メモ帳など）で開き、<code style="background:var(--bg3);padding:1px 5px;border-radius:3px;color:var(--warn)">/* COEFFICIENTS */</code> セクションの数値を書き換えて上書き保存します。
+    </div>
+    <div style="font-size:.75rem; color:var(--text2); margin-bottom:.5rem;">現在の係数値（JavaScript内の <code style="color:var(--warn)">COEFFICIENTS</code> セクション）</div>
+    <div class="coef-grid">
+      <div>
+        <div class="coef-row"><span class="coef-name">K（シンプル）</span><span class="coef-val">0.380160</span></div>
+        <div class="coef-row"><span class="coef-name">AM.a</span><span class="coef-val">0.380867</span></div>
+        <div class="coef-row"><span class="coef-name">AM.b（EUR係数）</span><span class="coef-val">−0.124068</span></div>
+        <div class="coef-row"><span class="coef-name">AM.c（切片）</span><span class="coef-val">−59.5207</span></div>
+      </div>
+      <div>
+        <div class="coef-row"><span class="coef-name">PM.a</span><span class="coef-val">0.378894</span></div>
+        <div class="coef-row"><span class="coef-name">PM.b（TOPIX係数）</span><span class="coef-val">0.060552</span></div>
+        <div class="coef-row"><span class="coef-name">PM.c（切片）</span><span class="coef-val">−113.3533</span></div>
+        <div class="coef-row"><span class="coef-name">次回更新推奨</span><span class="coef-val" style="color:var(--text1)">2026年6月頃</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="footer">
+  eMAXIS Slim 全世界株式(オルカン) 基準価額予測ツール — v2026.03.14<br>
+  予測値は参考情報です。投資判断はご自身でご確認ください。
+</div>
+
+<script>
+/* ============================================================
+   PIN AUTHENTICATION — PINを変更する場合はここを書き換え
+   ============================================================ */
+const CORRECT_PIN = '1123'; // ← 任意の4桁数字に変更してください
+/* ============================================================ */
+
+const PIN_SESSION_KEY = 'orcan_pin_ok';
+
+(function initPin() {
+  if (sessionStorage.getItem(PIN_SESSION_KEY) === 'true') {
+    document.getElementById('pin-overlay').style.display = 'none';
+    return;
+  }
+  const ids = ['p1','p2','p3','p4'];
+  ids.forEach(function(id, i) {
+    const el = document.getElementById(id);
+
+    el.addEventListener('input', function() {
+      // 数字以外を除去、先頭1文字のみ残す
+      this.value = this.value.replace(/[^0-9]/g, '').slice(0, 1);
+      if (this.value.length === 1) {
+        if (i < ids.length - 1) {
+          document.getElementById(ids[i + 1]).focus();
+        } else {
+          this.blur();
+          checkPin();
+        }
+      }
+    });
+
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Backspace' && this.value === '' && i > 0) {
+        document.getElementById(ids[i - 1]).focus();
+      }
+    });
+
+    // iOSではfocus時に既存値を選択してすぐ上書きできるようにする
+    el.addEventListener('focus', function() {
+      setTimeout(() => this.select(), 50);
+    });
+  });
+  document.getElementById('p1').focus();
+})();
+
+function checkPin() {
+  const entered = ['p1','p2','p3','p4'].map(id => document.getElementById(id).value).join('');
+  if (entered === CORRECT_PIN) {
+    sessionStorage.setItem(PIN_SESSION_KEY, 'true');
+    const overlay = document.getElementById('pin-overlay');
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity .3s';
+    setTimeout(() => overlay.style.display = 'none', 300);
+  } else if (entered.length === 4) {
+    document.getElementById('pin-error').textContent = 'PINコードが違います';
+    ['p1','p2','p3','p4'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('p1').focus();
+    setTimeout(() => document.getElementById('pin-error').textContent = '', 2000);
+  }
+}
+/* ============================================================ */
+
+/* ============================================================
+   COEFFICIENTS — ここの数値を3ヶ月に1回更新する
+   更新方法: 最新データをClaudeに渡し、新しい係数を確認後
+             このセクションの数値を書き換えて保存
+   ============================================================ */
+const COEF = {
+  K:    0.380160,   // シンプルK（直近90日平均、始値使用）
+  AM: {
+    a:  0.380867,   // MSCI×USD係数
+    b: -0.124068,   // EUR/JPY始値係数
+    c: -59.5207,    // 切片
+  },
+  PM: {
+    a:  0.378894,   // MSCI×USD係数
+    b:  0.060552,   // TOPIX係数
+    c: -113.3533,   // 切片
+  },
+};
+/* ============================================================ */
+
+const LS = 'orcan_v3_';
+let mode = 'am';
+
+// ---- LocalStorage helpers ----
+function save(id) {
+  const v = document.getElementById(id).value;
+  if (v) localStorage.setItem(LS + id, v);
+  else   localStorage.removeItem(LS + id);
+}
+function restore(id) {
+  const v = localStorage.getItem(LS + id);
+  if (v != null) document.getElementById(id).value = v;
+}
+function saveMode(m) { localStorage.setItem(LS + 'mode', m); }
+function restoreMode() { return localStorage.getItem(LS + 'mode') || 'am'; }
+
+// ---- Restore on load ----
+['msci','usd','eur','topix','prev_nav','prev_nav_pm','actual_nav'].forEach(restore);
+mode = restoreMode();
+
+// ---- Mode ----
+function setMode(m) {
+  mode = m;
+  saveMode(m);
+  document.getElementById('btn-am').className = 'mode-btn' + (m==='am'?' on-am':'');
+  document.getElementById('btn-pm').className = 'mode-btn' + (m==='pm'?' on-pm':'');
+  document.getElementById('inp-am').style.display = m==='am' ? '' : 'none';
+  document.getElementById('inp-pm').style.display = m==='pm' ? '' : 'none';
+  const card = document.getElementById('input-card');
+  card.className = 'card ' + (m==='am' ? 'am-card' : 'pm-card');
+  const descs = {
+    am: 'EUR/JPYの<strong>始値</strong>を使って午前中から予測',
+    pm: 'TOPIXを使って15:30以降に予測',
+  };
+  document.getElementById('mode-desc').innerHTML = descs[m];
+  if (m==='pm') syncPrev('prev_nav','prev_nav_pm');
+  else          syncPrev('prev_nav_pm','prev_nav');
+  calc();
+}
+
+function syncPrev(src, dst) {
+  const v = document.getElementById(src).value;
+  if (v) document.getElementById(dst).value = v;
+}
+
+// ---- Calc ----
+function calc() {
+  const msci = parseFloat(document.getElementById('msci').value) || 0;
+  const usd  = parseFloat(document.getElementById('usd').value)  || 0;
+  if (!msci || !usd) {
+    document.getElementById('r-nav').textContent = '—';
+    document.getElementById('r-lbl').textContent = '—';
+    document.getElementById('r-rng').textContent = '—';
+    document.getElementById('r-fml').textContent = '入力値を変更すると計算式が表示されます';
+    return;
+  }
+  const base = msci * usd;
+  let pred, lbl, lines = [], pn;
+
+  if (mode === 'am') {
+    const eur = parseFloat(document.getElementById('eur').value) || 0;
+    pn = parseFloat(document.getElementById('prev_nav').value) || 0;
+    pred = eur
+      ? COEF.AM.a * base + COEF.AM.b * eur + COEF.AM.c
+      : COEF.K * base;
+    lbl = eur ? 'EUR/JPY補正モデル（始値）' : 'シンプルK（EUR未入力）';
+    lines = [
+      `MSCI_prev = ${msci}`,
+      `USD_始値  = ${usd}   →   base = ${base.toFixed(2)}`,
+      eur ? `EUR_始値  = ${eur}` : '（EUR未入力 → シンプルK使用）',
+      '─────────────────────────────────────',
+      eur
+        ? `予測 = ${COEF.AM.a} × ${base.toFixed(2)}  +  (${COEF.AM.b}) × ${eur}  +  (${COEF.AM.c})`
+        : `予測 = ${COEF.K} × ${base.toFixed(2)}`,
+      `     = ${fmtN(pred)}`,
+    ].filter(Boolean);
+  } else {
+    const top = parseFloat(document.getElementById('topix').value) || 0;
+    pn = parseFloat(document.getElementById('prev_nav_pm').value) || 0;
+    pred = top
+      ? COEF.PM.a * base + COEF.PM.b * top + COEF.PM.c
+      : COEF.K * base;
+    lbl = top ? 'TOPIX補正モデル（始値）' : 'シンプルK（TOPIX未入力）';
+    lines = [
+      `MSCI_prev = ${msci}`,
+      `USD_始値  = ${usd}   →   base = ${base.toFixed(2)}`,
+      top ? `TOPIX     = ${top}` : '（TOPIX未入力 → シンプルK使用）',
+      '─────────────────────────────────────',
+      top
+        ? `予測 = ${COEF.PM.a} × ${base.toFixed(2)}  +  ${COEF.PM.b} × ${top}  +  (${COEF.PM.c})`
+        : `予測 = ${COEF.K} × ${base.toFixed(2)}`,
+      `     = ${fmtN(pred)}`,
+    ].filter(Boolean);
+  }
+
+  if (pn) {
+    const c = (pred - pn) / pn * 100;
+    const diff = Math.round(pred - pn);
+    lines.push(`前日比  = ${fmtP(c)}   (${diff >= 0 ? '+' : ''}${diff.toLocaleString()} 円)`);
+    const el = document.getElementById('r-chg');
+    el.textContent = fmtP(c);
+    el.className = 'metric-value ' + (c > 0.05 ? 'up' : c < -0.05 ? 'dn' : 'neu');
+    document.getElementById('r-chg-sub').textContent = `${diff >= 0 ? '+' : ''}${diff.toLocaleString()} 円`;
+  } else {
+    document.getElementById('r-chg').textContent = '—';
+    document.getElementById('r-chg').className = 'metric-value neu';
+    document.getElementById('r-chg-sub').textContent = '前日実績入力時に表示';
+  }
+
+  document.getElementById('r-nav').textContent = fmtN(pred);
+  document.getElementById('r-lbl').textContent = lbl;
+  const lo = Math.round(pred * (1 - 0.00116)), hi = Math.round(pred * (1 + 0.00116));
+  document.getElementById('r-rng').textContent = `${lo.toLocaleString()} 〜 ${hi.toLocaleString()} 円`;
+  document.getElementById('r-fml').textContent = lines.join('\n');
+
+  // ---- Actual NAV comparison ----
+  calcActual(pred);
+}
+
+// Store last pred for actual comparison
+let lastPredAM = 0, lastPredPM = 0;
+
+function calcActual(currentPred) {
+  // Compute both AM and PM predictions regardless of mode for comparison
+  const msci = parseFloat(document.getElementById('msci').value) || 0;
+  const usd  = parseFloat(document.getElementById('usd').value)  || 0;
+  if (msci && usd) {
+    const base = msci * usd;
+    const eur = parseFloat(document.getElementById('eur').value) || 0;
+    const top = parseFloat(document.getElementById('topix').value) || 0;
+    lastPredAM = eur ? COEF.AM.a*base + COEF.AM.b*eur + COEF.AM.c : COEF.K*base;
+    lastPredPM = top ? COEF.PM.a*base + COEF.PM.b*top + COEF.PM.c : COEF.K*base;
+  }
+
+  const actual = parseFloat(document.getElementById('actual_nav').value) || 0;
+  if (!actual) {
+    document.getElementById('r-actual-am').textContent = '—';
+    document.getElementById('r-actual-am').className = 'metric-value neu';
+    document.getElementById('r-actual-am-sub').textContent = '当日基準価額を入力すると表示';
+    document.getElementById('r-actual-pm').textContent = '—';
+    document.getElementById('r-actual-pm').className = 'metric-value neu';
+    document.getElementById('r-actual-pm-sub').textContent = '予測(AM)・予測(PM)両方と比較';
+    return;
+  }
+
+  function setActual(elId, subId, pred, label) {
+    if (!pred) { document.getElementById(elId).textContent = '—'; return; }
+    const diff = Math.round(pred - actual);
+    const pct  = (pred - actual) / actual * 100;
+    const el   = document.getElementById(elId);
+    el.textContent = fmtP(pct);
+    el.className = 'metric-value ' + (Math.abs(pct) < 0.2 ? 'up' : Math.abs(pct) > 0.5 ? 'dn' : 'neu');
+    document.getElementById(subId).textContent =
+      `予測${label} ${Math.round(pred).toLocaleString()}円  実績 ${actual.toLocaleString()}円  差 ${diff>=0?'+':''}${diff.toLocaleString()}円`;
+  }
+  setActual('r-actual-am', 'r-actual-am-sub', lastPredAM, '(AM)');
+  setActual('r-actual-pm', 'r-actual-pm-sub', lastPredPM, '(PM)');
+}
+
+function fmtN(n) { return Math.round(n).toLocaleString() + ' 円'; }
+function fmtP(n) { return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; }
+
+// ---- Event listeners ----
+['msci','usd','eur','topix'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => { save(id); calc(); });
+});
+document.getElementById('prev_nav').addEventListener('input', function() {
+  save('prev_nav');
+  document.getElementById('prev_nav_pm').value = this.value;
+  save('prev_nav_pm');
+  calc();
+});
+document.getElementById('prev_nav_pm').addEventListener('input', function() {
+  save('prev_nav_pm');
+  document.getElementById('prev_nav').value = this.value;
+  save('prev_nav');
+  calc();
+});
+document.getElementById('actual_nav').addEventListener('input', function() {
+  save('actual_nav');
+  calcActual();
+});
+
+// ---- Recent table data ----
+const REC = [
+  {d:'2026/02/18',nav:33458,m:573.63,u:153.32,e:181.76,t:3807.25,am:33415,pm:33441},
+  {d:'2026/02/19',nav:33964,m:577.65,u:154.80,e:182.45,t:3852.09,am:33975,pm:34001},
+  {d:'2026/02/20',nav:33956,m:576.37,u:155.05,e:182.49,t:3808.48,am:33954,pm:33978},
+  {d:'2026/02/24',nav:33885,m:576.00,u:154.64,e:182.25,t:3815.98,am:33843,pm:33867},
+  {d:'2026/02/25',nav:34305,m:579.00,u:155.89,e:183.53,t:3843.16,am:34295,pm:34318},
+  {d:'2026/02/26',nav:34704,m:584.25,u:156.36,e:184.66,t:3880.34,am:34711,pm:34735},
+  {d:'2026/02/27',nav:34542,m:583.12,u:156.13,e:184.19,t:3938.68,am:34593,pm:34621},
+  {d:'2026/03/02',nav:34544,m:580.95,u:155.65,e:183.89,t:3898.42,am:34357,pm:34384},
+  {d:'2026/03/03',nav:34533,m:577.98,u:157.40,e:183.94,t:3772.17,am:34567,pm:34585},
+  {d:'2026/03/04',nav:33915,m:566.96,u:157.48,e:183.17,t:3633.67,am:33923,pm:33936},
+  {d:'2026/03/05',nav:33853,m:567.97,u:157.07,e:182.71,t:3702.67,am:33895,pm:33912},
+  {d:'2026/03/06',nav:33888,m:566.13,u:157.54,e:182.96,t:3716.93,am:33887,pm:33905},
+  {d:'2026/03/09',nav:33669,m:559.32,u:157.79,e:183.33,t:3575.84,am:33531,pm:33543},
+  {d:'2026/03/10',nav:33619,m:559.53,u:157.68,e:183.48,t:3664.28,am:33520,pm:33537},
+  {d:'2026/03/11',nav:33909,m:564.05,u:158.06,e:183.52,t:3698.85,am:33873,pm:33890},
+];
+(function() {
+  const tb = document.getElementById('rec-tbody');
+  REC.slice().reverse().forEach(r => {
+    const eA = (r.am - r.nav) / r.nav * 100;
+    const eP = (r.pm - r.nav) / r.nav * 100;
+    const sc = v => Math.abs(v) < 0.2 ? 'good' : Math.abs(v) > 0.4 ? 'bad' : 'mid';
+    tb.innerHTML += `<tr>
+      <td>${r.d}</td>
+      <td>${r.nav.toLocaleString()}</td>
+      <td>${r.m.toFixed(2)}</td>
+      <td>${r.u.toFixed(2)}</td>
+      <td>${r.e.toFixed(2)}</td>
+      <td class="${sc(eA)}">${r.am.toLocaleString()} (${eA>=0?'+':''}${eA.toFixed(2)}%)</td>
+      <td class="${sc(eP)}">${r.pm.toLocaleString()} (${eP>=0?'+':''}${eP.toFixed(2)}%)</td>
+    </tr>`;
+  });
+})();
+
+// ---- Formula toggle ----
+function toggleFormula(btn) {
+  const fml   = document.getElementById('r-fml');
+  const arrow = btn.querySelector('.toggle-arrow');
+  const label = btn.querySelector('.toggle-label');
+  const isOpen = fml.style.display === 'block';
+  fml.style.display = isOpen ? 'none' : 'block';
+  arrow.classList.toggle('open', !isOpen);
+  btn.setAttribute('aria-expanded', String(!isOpen));
+  label.textContent = isOpen ? '計算式を表示' : '計算式を隠す';
+}
+
+// ---- Tab switching ----
+function showTab(name, btn) {
+  document.querySelectorAll('[id^=tab-]').forEach(e => e.style.display = 'none');
+  document.querySelectorAll('.tab').forEach(e => e.classList.remove('on'));
+  document.getElementById('tab-' + name).style.display = '';
+  btn.classList.add('on');
+}
+
+// ---- Init ----
+setMode(mode);
+// 初期タブを「使い方フロー」に設定
+document.querySelectorAll('[id^=tab-]').forEach(e => e.style.display = 'none');
+document.getElementById('tab-flow').style.display = '';
+// ヘッダー高さをCSS変数に設定（モードカードのsticky top用）
+function setHeaderHeight() {
+  const h = document.querySelector('.page-header').offsetHeight;
+  document.documentElement.style.setProperty('--header-h', h + 'px');
+}
+setHeaderHeight();
+window.addEventListener('resize', setHeaderHeight);
+</script>
+</body>
+</html>
