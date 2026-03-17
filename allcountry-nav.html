@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="googlebot" content="noindex, nofollow">
 <title>eMAXIS Slim 全世界株式(オルカン) - 基準価額予測ツール</title>
@@ -38,7 +38,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 15px; }
+html { font-size: 16px; }
 body {
   background: var(--bg0);
   color: var(--text0);
@@ -139,12 +139,13 @@ body {
   align-items: center;
   gap: .4rem;
 }
-.input-group input[type=number] {
+.input-group input[type=number],
+.input-group input[type=tel] {
   background: var(--bg2);
   border: 1.5px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text0);
-  font-size: .95rem;
+  font-size: 16px;
   font-family: var(--mono);
   padding: .5rem .75rem;
   width: 100%;
