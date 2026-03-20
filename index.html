@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+<meta name="referrer" content="no-referrer">
+<title>eMAXIS Slim 基準価額予測ツール</title>
+<!--
+  使用方法 / How to use:
+  このファイルは file:// では動作しません。ローカルHTTPサーバが必要です。
+  プロジェクトディレクトリで以下を実行してください:
+    python -m http.server 8080
+  その後 http://localhost:8080 にアクセス。
+-->
+<style>
+:root {
+  --bg0:      #0e1117;
+  --bg1:      #161b27;
+  --bg2:      #1e2535;
+  --bg3:      #252d3d;
+  --border:   #2e3a52;
+  --accent-am:#3b82f6;
+  --text0:    #e8edf5;
+  --text1:    #9ba8be;
+  --text2:    #5f6e8a;
+  --dn:       #f87171;
+  --font:     'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+  --mono:     'Consolas', 'Courier New', monospace;
+  --r-sm:6px; --r-md:10px; --r-lg:14px;
+  --tab-bar-h: 48px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--text0);font-family:var(--font);}
+
+/* ---- PIN overlay ---- */
+#pin-overlay{position:fixed;inset:0;background:var(--bg0);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1.5rem;}
+.pin-box{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r-lg);padding:2rem 2rem 1.75rem;width:100%;max-width:340px;text-align:center;}
+.pin-title{font-size:.95rem;font-weight:600;color:var(--text0);margin-bottom:.35rem;}
+.pin-sub{font-size:.75rem;color:var(--text2);margin-bottom:1.5rem;line-height:1.5;}
+.pin-input-wrap{display:flex;gap:.5rem;justify-content:center;margin-bottom:1rem;}
+.pin-digit{width:52px;height:58px;background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r-md);color:var(--text0);font-size:1.5rem;font-family:var(--mono);font-weight:600;text-align:center;caret-color:var(--accent-am);}
+.pin-digit:focus{outline:none;border-color:var(--accent-am);box-shadow:0 0 0 3px rgba(59,130,246,.12);}
+.pin-error{font-size:.75rem;color:var(--dn);min-height:1.2rem;margin-bottom:.75rem;}
+.pin-btn{width:100%;padding:.65rem;background:rgba(59,130,246,.15);border:1px solid var(--accent-am);border-radius:var(--r-md);color:#93c5fd;font-size:.85rem;font-family:var(--font);font-weight:500;cursor:pointer;transition:background .15s;}
+.pin-btn:hover{background:rgba(59,130,246,.25);}
+
+/* ---- App tab bar ---- */
+.app-tab-bar{
+  position:fixed;top:0;left:0;right:0;
+  height:var(--tab-bar-h);
+  background:var(--bg1);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  gap:.5rem;padding:0 1.25rem;
+  z-index:100;
+}
+.app-tab{
+  padding:.35rem 1.1rem;
+  font-size:.82rem;
+  font-family:var(--font);
+  border:1px solid var(--border);
+  border-radius:var(--r-sm);
+  cursor:pointer;
+  background:transparent;
+  color:var(--text1);
+  transition:background .15s,color .15s;
+  white-space:nowrap;
+}
+.app-tab:hover{background:var(--bg3);color:var(--text0);}
+.app-tab.active{background:var(--bg3);color:var(--text0);border-color:#4a5568;font-weight:500;}
+
+/* ---- iframe container ---- */
+#iframe-container{
+  position:fixed;
+  top:var(--tab-bar-h);
+  left:0;right:0;bottom:0;
+}
+#iframe-container iframe{
+  position:absolute;
+  top:0;left:0;
+  width:100%;height:100%;
+  border:none;
+  display:none;
+}
+#iframe-container iframe.active{display:block;}
+</style>
+</head>
+<body>
+
+<!-- SHARED PIN OVERLAY -->
+<div id="pin-overlay">
+  <div class="pin-box">
+    <div class="pin-title">アクセス認証</div>
+    <div class="pin-sub">4桁のPINコードを入力してください</div>
+    <div class="pin-input-wrap">
+      <input class="pin-digit" type="tel" id="p1" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input class="pin-digit" type="tel" id="p2" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input class="pin-digit" type="tel" id="p3" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input class="pin-digit" type="tel" id="p4" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+    <button class="pin-btn" onclick="checkPin()">確認</button>
+  </div>
+</div>
+
+<!-- APP TAB BAR -->
+<div class="app-tab-bar">
+  <button class="app-tab active" id="tab-btn-sp500" onclick="switchTab('sp500')">S&amp;P500（米国株）</button>
+  <button class="app-tab"        id="tab-btn-orcan" onclick="switchTab('orcan')">オルカン（全世界）</button>
+</div>
+
+<!-- IFRAME CONTAINER -->
+<div id="iframe-container">
+  <iframe id="frame-sp500" class="active" src="sp500-nav.html" title="S&P500 NAV予測ツール"></iframe>
+  <iframe id="frame-orcan" title="オルカン NAV予測ツール"></iframe><!-- lazy: src set on first switch -->
+</div>
+
+<script>
+const CORRECT_PIN = '1123';
+const APP_PIN_KEY = 'app_pin_ok';
+const INNER_KEYS  = { sp500: 'sp500_pin_ok', orcan: 'orcan_pin_ok' };
+const APP_TAB_KEY = 'app_active_tab';
+
+/* ---- PIN auth ---- */
+function checkPin() {
+  const val = ['p1','p2','p3','p4'].map(id => document.getElementById(id).value).join('');
+  if (val === CORRECT_PIN) {
+    sessionStorage.setItem(APP_PIN_KEY, 'true');
+    const ov = document.getElementById('pin-overlay');
+    ov.style.transition = 'opacity .3s';
+    ov.style.opacity = '0';
+    setTimeout(() => ov.style.display = 'none', 300);
+    suppressAllInnerPins();
+    document.getElementById('p1').focus();
+  } else {
+    document.getElementById('pin-error').textContent = 'PINが正しくありません';
+    ['p1','p2','p3','p4'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('p1').focus();
+  }
+}
+
+/* Inject auth into a loaded iframe and hide its PIN overlay */
+function suppressInnerPin(frame) {
+  try {
+    const cw = frame.contentWindow;
+    if (!cw) return;
+    Object.values(INNER_KEYS).forEach(k => cw.sessionStorage.setItem(k, 'true'));
+    const overlay = cw.document.getElementById('pin-overlay');
+    if (overlay) overlay.style.display = 'none';
+  } catch(e) {
+    /* cross-origin or not yet loaded — onload handler will cover it */
+  }
+}
+
+function suppressAllInnerPins() {
+  document.querySelectorAll('#iframe-container iframe').forEach(suppressInnerPin);
+}
+
+/* Attach onload handler so that iframes loaded after auth are also suppressed */
+function attachOnload(frame) {
+  frame.addEventListener('load', function() {
+    if (sessionStorage.getItem(APP_PIN_KEY) === 'true') {
+      suppressInnerPin(frame);
+    }
+  });
+}
+
+/* ---- PIN digit UX: auto-advance and Enter submit ---- */
+document.querySelectorAll('.pin-digit').forEach((el, i, arr) => {
+  el.addEventListener('input', () => {
+    if (el.value.length === 1 && i < arr.length - 1) arr[i + 1].focus();
+    if (i === arr.length - 1 && el.value.length === 1) checkPin();
+  });
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && el.value === '' && i > 0) arr[i - 1].focus();
+    if (e.key === 'Enter') checkPin();
+  });
+});
+
+/* ---- Tab switching ---- */
+let orcanLoaded = false;
+
+function switchTab(name) {
+  /* Lazy-load orcan iframe on first switch */
+  if (name === 'orcan' && !orcanLoaded) {
+    const f = document.getElementById('frame-orcan');
+    f.src = 'allcountry-nav.html';
+    orcanLoaded = true;
+    /* onload attached in init — will suppress PIN if authed */
+  }
+
+  /* Show/hide iframes */
+  document.getElementById('frame-sp500').classList.toggle('active', name === 'sp500');
+  document.getElementById('frame-orcan').classList.toggle('active', name === 'orcan');
+
+  /* Update tab buttons */
+  document.getElementById('tab-btn-sp500').classList.toggle('active', name === 'sp500');
+  document.getElementById('tab-btn-orcan').classList.toggle('active', name === 'orcan');
+
+  /* Persist selection */
+  localStorage.setItem(APP_TAB_KEY, name);
+}
+
+/* ---- Init ---- */
+(function init() {
+  /* Attach onload handlers before src is set */
+  attachOnload(document.getElementById('frame-sp500'));
+  attachOnload(document.getElementById('frame-orcan'));
+
+  /* PIN check */
+  if (sessionStorage.getItem(APP_PIN_KEY) === 'true') {
+    document.getElementById('pin-overlay').style.display = 'none';
+    /* Inner iframes may not be loaded yet; onload handler covers them */
+  } else {
+    document.getElementById('p1').focus();
+  }
+
+  /* Restore last active tab */
+  const savedTab = localStorage.getItem(APP_TAB_KEY);
+  if (savedTab && savedTab !== 'sp500') {
+    switchTab(savedTab);
+  }
+})();
+</script>
+</body>
+</html>
