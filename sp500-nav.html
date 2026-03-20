@@ -33,10 +33,10 @@
   --r-sm:6px; --r-md:10px; --r-lg:14px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{font-size:15px;}
+html{font-size:16px;}
 body{background:var(--bg0);color:var(--text0);font-family:var(--font);min-height:100vh;}
 
-.page-header{background:var(--bg1);border-bottom:1px solid var(--border);padding:1.1rem 2rem;display:flex;align-items:baseline;gap:1rem;position:sticky;top:0;z-index:200;}
+.page-header{background:var(--bg1);border-bottom:1px solid var(--border);padding:1.1rem 2rem;display:flex;align-items:baseline;justify-content:center;gap:1rem;position:sticky;top:0;z-index:200;}
 .page-title{font-size:1rem;font-weight:600;color:var(--text0);letter-spacing:.02em;}
 .container{max-width:860px;margin:0 auto;padding:1.5rem 1.5rem 4rem;}
 
@@ -65,7 +65,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--font);min-height
 .badge-blue  {background:rgba(59,130,246,.18);color:#93c5fd;}
 .badge-amber {background:rgba(245,158,11,.18);color:#fcd34d;}
 .badge-orange{background:rgba(251,146,60,.18);color:#fdba74;}
-.badge-green {background:rgba(52,211,153,.18);color:#6ee7b7;}
+.badge-green {background:rgba(16,185,129,.18);color:#6ee7b7;}
 
 .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.75rem;margin-bottom:1rem;}
 .metric{background:var(--bg2);border-radius:var(--r-md);border:1px solid var(--border);padding:.875rem 1rem;}
@@ -146,6 +146,7 @@ body{background:var(--bg0);color:var(--text0);font-family:var(--font);min-height
   .tbl th,.tbl td{padding:.35rem .45rem;}
   .coef-grid{grid-template-columns:1fr;}
   .maintenance-card{padding:.875rem 1rem;}
+  .badge{font-size:.6rem;padding:1px 5px;}
 }
 </style>
 </head>
